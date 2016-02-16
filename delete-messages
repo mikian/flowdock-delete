@@ -14,7 +14,12 @@ end
 def delete_private_messages(flow_id, last_id = nil)
   all_messages = @client.get("/private/#{flow_id}/messages?limit=100#{last_id.nil? || "&until_id=#{last_id}"}").tap do |messages|
     messages.select{|msg| msg['user'] == @user_id.to_s}.each do |message|
-      @client.delete("/private/#{flow_id}/messages/#{message['id']}")
+      begin
+        @client.delete("/private/#{flow_id}/messages/#{message['id']}")
+      rescue
+        puts "Unable to delete message id #{message['id']}"
+        next
+      end
     end
   end
 
@@ -26,7 +31,12 @@ end
 def delete_public_messages(org_id, flow_id, last_id = nil)
   all_messages = @client.get("/flows/#{org_id}/#{flow_id}/messages?limit=100#{last_id.nil? || "&until_id=#{last_id}"}").tap do |messages|
     messages.select{|msg| msg['user'] == @user_id.to_s}.each do |message|
-      @client.delete("/flows/#{org_id}/#{flow_id}/messages/#{message['id']}")
+      begin
+        @client.delete("/flows/#{org_id}/#{flow_id}/messages/#{message['id']}")
+      rescue
+        puts "Unable to delete message id #{message['id']}"
+        next
+      end
     end
   end
 
