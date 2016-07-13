@@ -15,15 +15,17 @@ def delete_private_messages(flow_id, last_id = nil)
   all_messages = @client.get("/private/#{flow_id}/messages?limit=100#{last_id.nil? || "&until_id=#{last_id}"}").tap do |messages|
     messages.select{|msg| msg['user'] == @user_id.to_s}.each do |message|
       begin
-        @client.delete("/private/#{flow_id}/messages/#{message['id']}")
+        puts "Remove message #{message['id']}@#{Time.parse(message['created_at'])}"
+        @client.delete("/private/#{flow_id}/messages/#{message['id']}") unless ENV['DRYRUN']
       rescue
         puts "Unable to delete message id #{message['id']}"
+        File.open('failed.log', 'a+') {|f| f.puts "/private/#{flow_id}/messages/#{message['id']}"}
         next
       end
     end
   end
 
-  if all_messages.count == 100
+  if all_messages.count >= 100
     delete_private_messages(flow_id, all_messages.first['id'])
   end
 end
@@ -32,27 +34,30 @@ def delete_public_messages(org_id, flow_id, last_id = nil)
   all_messages = @client.get("/flows/#{org_id}/#{flow_id}/messages?limit=100#{last_id.nil? || "&until_id=#{last_id}"}").tap do |messages|
     messages.select{|msg| msg['user'] == @user_id.to_s}.each do |message|
       begin
-        @client.delete("/flows/#{org_id}/#{flow_id}/messages/#{message['id']}")
+        puts "Remove message #{message['id']}@#{Time.parse(message['created_at'])}"
+        @client.delete("/flows/#{org_id}/#{flow_id}/messages/#{message['id']}") unless ENV['DRYRUN']
       rescue
         puts "Unable to delete message id #{message['id']}"
+        File.open('failed.log', 'a+') {|f| f.puts "/flows/#{org_id}/#{flow_id}/messages/#{message['id']}"}
         next
       end
     end
   end
 
-  if all_messages.count == 100
+  if all_messages.count >= 100
     delete_public_messages(org_id, flow_id, all_messages.first['id'])
   end
 end
 
 # Private Messages
 @client.get('/private').each do |private_flow|
-  puts "Deleting messages @#{private_flow['name']}"
+  puts "Deleting private messages @#{private_flow['name']}"
   delete_private_messages(private_flow['id'])
 end
 
 # Public Messages
 @client.get('/flows/all').each do |flow|
+  next unless flow['joined']
   puts "Deleting messages @#{flow['name']}"
   delete_public_messages(flow['organization']['parameterized_name'], flow['parameterized_name'])
 end
