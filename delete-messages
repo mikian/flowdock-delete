@@ -13,17 +13,18 @@ end
 
 def delete_private_messages(flow_id, last_id = nil)
   all_messages = @client.get("/private/#{flow_id}/messages?limit=100#{last_id.nil? || "&until_id=#{last_id}"}").tap do |messages|
-    messages.select{|msg| msg['user'] == @user_id.to_s}.each do |message|
+    messages.select{|msg| msg['user'] == @user_id.to_s && msg['content'] != ''}.each do |message|
       begin
-        puts "Remove message #{message['id']}@#{Time.parse(message['created_at'])}"
+        print "\nRemove message #{message['id']}@#{Time.parse(message['created_at'])}"
         @client.delete("/private/#{flow_id}/messages/#{message['id']}") unless ENV['DRYRUN']
       rescue
-        puts "Unable to delete message id #{message['id']}"
+        print "\nUnable to delete message id #{message['id']}"
         File.open('failed.log', 'a+') {|f| f.puts "/private/#{flow_id}/messages/#{message['id']}"}
         next
       end
     end
   end
+  print '.'
 
   if all_messages.count >= 100
     delete_private_messages(flow_id, all_messages.first['id'])
@@ -31,20 +32,23 @@ def delete_private_messages(flow_id, last_id = nil)
 end
 
 def delete_public_messages(org_id, flow_id, last_id = nil)
+  join = false  # Track if we found join message
   all_messages = @client.get("/flows/#{org_id}/#{flow_id}/messages?limit=100#{last_id.nil? || "&until_id=#{last_id}"}").tap do |messages|
-    messages.select{|msg| msg['user'] == @user_id.to_s}.each do |message|
+    join = messages.any?{|msg| msg['user'] == @user_id.to_s && msg['content'] && msg['content']['type'] == 'join'}
+    messages.select{|msg| msg['user'] == @user_id.to_s && msg['content'] != ''}.each do |message|
       begin
-        puts "Remove message #{message['id']}@#{Time.parse(message['created_at'])}"
+        print "\nRemove message #{message['id']}@#{Time.parse(message['created_at'])}"
         @client.delete("/flows/#{org_id}/#{flow_id}/messages/#{message['id']}") unless ENV['DRYRUN']
       rescue
-        puts "Unable to delete message id #{message['id']}"
+        print "\nUnable to delete message id #{message['id']}"
         File.open('failed.log', 'a+') {|f| f.puts "/flows/#{org_id}/#{flow_id}/messages/#{message['id']}"}
         next
       end
     end
   end
+  print '.'
 
-  if all_messages.count >= 100
+  if all_messages.count >= 100 && !join
     delete_public_messages(org_id, flow_id, all_messages.first['id'])
   end
 end
@@ -60,25 +64,4 @@ end
   next unless flow['joined']
   puts "Deleting messages @#{flow['name']}"
   delete_public_messages(flow['organization']['parameterized_name'], flow['parameterized_name'])
-end
-
-# Retry failed deletions
-exit 0 if ENV['DRYRUN']
-
-if File.exists?('failed.log')
-  urls = File.read('failed.log').split.map(&:strip)
-  failed = []
-
-  urls.each do |url|
-    puts "Retrying #{url}..."
-    begin
-      @client.delete(url)
-    rescue
-      puts "FAILURE: #{url}"
-      failed << url
-    end
-  end
-
-  File.open('failed.log', 'a+') {|f| f.puts url.join("\n") }
-end
 end
