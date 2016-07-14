@@ -55,13 +55,13 @@ end
 
 # Private Messages
 @client.get('/private').each do |private_flow|
-  puts "Deleting private messages @#{private_flow['name']}"
+  puts "\nDeleting private messages @#{private_flow['name']}"
   delete_private_messages(private_flow['id'])
 end
 
 # Public Messages
 @client.get('/flows/all').each do |flow|
   next unless flow['joined']
-  puts "Deleting messages @#{flow['name']}"
+  puts "\nDeleting messages @#{flow['name']}"
   delete_public_messages(flow['organization']['parameterized_name'], flow['parameterized_name'])
 end
